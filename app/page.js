@@ -15,6 +15,7 @@ export default function Page() {
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [addError, setAddError] = useState('');
+  const [animeProvider, setAnimeProvider] = useState('');
 
   const [passcode, setPasscode] = useState('');
   const [unlockOpen, setUnlockOpen] = useState(false);
@@ -27,6 +28,13 @@ export default function Page() {
   useEffect(() => {
     const stored = window.localStorage.getItem('watchlog_passcode');
     if (stored) setPasscode(stored);
+
+    fetch('/api/search?probe=1')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && data.provider) setAnimeProvider(data.provider);
+      })
+      .catch(() => undefined);
 
     fetch('/api/entries')
       .then((r) => r.json())
@@ -46,14 +54,18 @@ export default function Page() {
     setSearching(true);
     debounceRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(query.trim())}&type=${encodeURIComponent(type)}`);
+        const providerParam = animeProvider ? `&provider=${encodeURIComponent(animeProvider)}` : '';
+        const res = await fetch(
+          `/api/search?q=${encodeURIComponent(query.trim())}&type=${encodeURIComponent(type)}${providerParam}`
+        );
         const data = await res.json();
         if (!res.ok) {
           setSearchError(data.error || 'Search failed.');
           setResults([]);
         } else {
           setSearchError('');
-          setResults(data);
+          if (data && data.provider) setAnimeProvider(data.provider);
+          setResults(Array.isArray(data) ? data : data.results || []);
         }
       } catch (err) {
         setSearchError('Search failed. Check your connection.');
@@ -64,7 +76,7 @@ export default function Page() {
     }, 450);
 
     return () => clearTimeout(debounceRef.current);
-  }, [query, type]);
+  }, [query, type, animeProvider]);
 
   function authHeaders() {
     const headers = { 'Content-Type': 'application/json' };
